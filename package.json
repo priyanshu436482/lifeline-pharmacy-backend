@@ -5,10 +5,12 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "start:backend": "node server.js",
     "start:pm2": "pm2 start server.js --name lifeline-backend",
     "stop": "pm2 stop lifeline-backend",
     "logs": "pm2 logs lifeline-backend",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "vercel-build": "echo Backend ready for Vercel"
   },
   "keywords": [],
   "author": "",
