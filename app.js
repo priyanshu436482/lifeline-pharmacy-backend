@@ -1,21 +1,19 @@
 require('dotenv').config();
 const crypto = require('crypto');
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
-const Product = require('./models/Product');
-const initialProducts = require('./data/initialProducts');
+const productStore = require('./services/productStore');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const TOKEN_TTL_MS = 1000 * 60 * 60 * 12;
 
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
-
-let cachedConnection = null;
-let connectionPromise = null;
-let seedPromise = null;
 
 function base64UrlEncode(value) {
   return Buffer.from(value)
@@ -91,48 +89,9 @@ function verifyAdminToken(token) {
   }
 }
 
-async function seedDatabase() {
-  const count = await Product.countDocuments();
-
-  if (count === 0) {
-    await Product.insertMany(initialProducts);
-    console.log('Database seeded successfully');
-  }
-}
-
-async function initializeDatabase() {
-  if (cachedConnection) {
-    return cachedConnection;
-  }
-
-  if (!process.env.MONGO_URI) {
-    throw new Error('MONGO_URI is not set');
-  }
-
-  if (!connectionPromise) {
-    connectionPromise = mongoose.connect(process.env.MONGO_URI).then((mongooseInstance) => {
-      cachedConnection = mongooseInstance;
-      console.log('Connected to MongoDB');
-      return mongooseInstance;
-    });
-  }
-
-  await connectionPromise;
-
-  if (!seedPromise) {
-    seedPromise = seedDatabase().catch((error) => {
-      seedPromise = null;
-      throw error;
-    });
-  }
-
-  await seedPromise;
-  return cachedConnection;
-}
-
 async function requireDatabase(req, res, next) {
   try {
-    await initializeDatabase();
+    await productStore.initializeDatabase();
     next();
   } catch (error) {
     console.error('Database initialization failed:', error);
@@ -166,27 +125,27 @@ app.get('/api/health', (req, res) => {
 });
 
 app.post('/api/admin/login', (req, res) => {
-  const { adminId, adminPassword } = getAdminCredentials();
+  const credentials = getAdminCredentials();
   const { id, password } = req.body;
 
-  if (id !== adminId || password !== adminPassword) {
+  if (id !== credentials.adminId || password !== credentials.adminPassword) {
     return res.status(401).json({ success: false, message: 'Invalid credentials' });
   }
 
-  const token = createAdminToken(adminId);
+  const token = createAdminToken(credentials.adminId);
 
   res.json({
     success: true,
     message: 'Login successful',
     token,
-    adminId,
+    adminId: credentials.adminId,
     expiresInMs: TOKEN_TTL_MS
   });
 });
 
 app.get('/api/products', requireDatabase, async (req, res) => {
   try {
-    const products = await Product.find().sort({ createdAt: -1 });
+    const products = await productStore.getAllProducts();
     res.json(products);
   } catch (error) {
     console.error('Error fetching products:', error);
@@ -196,7 +155,7 @@ app.get('/api/products', requireDatabase, async (req, res) => {
 
 app.get('/api/products/:slug', requireDatabase, async (req, res) => {
   try {
-    const product = await Product.findOne({ slug: req.params.slug });
+    const product = await productStore.getProductBySlug(req.params.slug);
 
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
@@ -212,16 +171,7 @@ app.get('/api/products/:slug', requireDatabase, async (req, res) => {
 app.post('/api/products', requireDatabase, requireAdminAuth, async (req, res) => {
   try {
     const { name, price, image, slug, category } = req.body;
-
-    const newProduct = new Product({
-      name,
-      price: Number(price),
-      image,
-      slug,
-      category
-    });
-
-    await newProduct.save();
+    const newProduct = await productStore.createProduct({ name, price, image, slug, category });
     res.status(201).json({ success: true, product: newProduct });
   } catch (error) {
     console.error('Error adding product:', error);
@@ -239,7 +189,7 @@ app.post('/api/products', requireDatabase, requireAdminAuth, async (req, res) =>
 
 app.delete('/api/products/:id', requireDatabase, requireAdminAuth, async (req, res) => {
   try {
-    const product = await Product.findByIdAndDelete(req.params.id);
+    const product = await productStore.deleteProduct(req.params.id);
 
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
@@ -254,6 +204,6 @@ app.delete('/api/products/:id', requireDatabase, requireAdminAuth, async (req, r
 
 module.exports = {
   app,
-  initializeDatabase,
+  initializeDatabase: productStore.initializeDatabase,
   PORT
 };

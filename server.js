@@ -1,16 +1,11 @@
 const { app, initializeDatabase, PORT } = require('./app');
 
-async function startServer() {
-  try {
-    await initializeDatabase();
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 
-    app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
+  initializeDatabase()
+    .then(() => console.log('Product storage ready'))
+    .catch((error) => {
+      console.error('Product storage init failed:', error.message);
     });
-  } catch (error) {
-    console.error('Failed to start server:', error);
-    process.exit(1);
-  }
-}
-
-startServer();
+});

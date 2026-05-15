@@ -1,0 +1,322 @@
+[
+  {
+    "_id": "cc390842ecd321cae35312c5",
+    "name": "Paracetamol 500mg Tablets",
+    "price": 45,
+    "image": "https://assets.sayacare.in/api/images/product_image/large_image/23/74/Paracetamol-500-mg-Tablet_1.webp",
+    "slug": "paracetamol",
+    "category": "medicines",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "ca27c193dbc0a2805ac5e84a",
+    "name": "Cetirizine 10mg Tablets",
+    "price": 32,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQdbGd8wGr-4oQJ-YxgJ48pAYKmlgRZDbm2Ag&s",
+    "slug": "cetirizine",
+    "category": "medicines",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "bf6a9147c69a206a4396cbda",
+    "name": "Dolo 650 Tablet",
+    "price": 28,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQSrN0aAuPlRxIrUvrQ_NEbvxN7njwUkAFD0w&s",
+    "slug": "dolo-650",
+    "category": "medicines",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "5ea13a4a268654a122a19be3",
+    "name": "bicasol capsule",
+    "price": 199,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQKivHb-LgF9lqImWrpsd6NWPwtnsfO_eNogg&s",
+    "slug": "vitamin-d3",
+    "category": "healthcare",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "eef365cd43c2a5f21dcb647c",
+    "name": "Supradyn Daily Tablet",
+    "price": 899,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTJ_IoWLs5J7lCvHC29u2SDbYjXsFgC4v40gg&s",
+    "slug": "bp-monitor",
+    "category": "healthcare",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "f3040fd901a2198a62c33e6e",
+    "name": "limcee tablet ",
+    "price": 299,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSrrL_6QbycbF-8FvtgN1DA_dqkpW5DWvWERA&s",
+    "slug": "cbc-test",
+    "category": "lab-tests",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "4a33c5a56e6107aaf36a00d9",
+    "name": "Hand Sanitizer 500ml",
+    "price": 149,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSDTHfxY4nJoGA06sf6jjbHGg4XA8_2E87pCw&s",
+    "slug": "hand-sanitizer",
+    "category": "personal-care",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "d8e1244d94923670bbd7777d",
+    "name": "Multivitamin Daily Capsules",
+    "price": 349,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT_69s4eM4qlVDAHiGGaP81dfSE1_mZcKpIfw&s",
+    "slug": "multivitamin",
+    "category": "healthcare",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "dc32848bb6467599ff4a2c6e",
+    "name": "Amoxicillin 500mg Capsules",
+    "price": 85,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSSQPJP4jA2W_QMOi0q8RXfLCzA5gnJAZJPig&s",
+    "slug": "amoxicillin",
+    "category": "medicines",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "1dd32d8630382013bb8e8509",
+    "name": "Omega-3 Fish Oil Softgels",
+    "price": 425,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTnj1gHm0F36pNc8KPqZ_zEBW-s5I7ybnfp8A&s",
+    "slug": "omega-3",
+    "category": "healthcare",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "5e5d4c6ad9423e78a18d3f54",
+    "name": "Dytor 40 Tablet",
+    "price": 449,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRkunjI9Emvgwa5-3m0eY-pk_RnJHsi7AiiSQ&s",
+    "slug": "thyroid-test",
+    "category": "lab-tests",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "061c29190876a73e5cf15c2e",
+    "name": "Face Mask Pack of 5",
+    "price": 199,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQHV05OsNg2wNPpoSZZEAcQ4RKThjORHPPupw&s",
+    "slug": "face-mask",
+    "category": "personal-care",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "dceeb259ab01d6272000ed6c",
+    "name": "Ibuprofen 400 Tablet",
+    "price": 60,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ0P-TawDsoseugG1-JM5zDKEgN5f2hs5Eexw&s",
+    "slug": "ibuprofen",
+    "category": "medicines",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "d05dbfb729a2f4bd97ecc996",
+    "name": "Crocin Advance Tablet",
+    "price": 35,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQrgC4yFIiN3KQ6Yjxy1OXUw6BAosifrVubGA&s",
+    "slug": "crocin-advance",
+    "category": "medicines",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "35ffb030be8b1d0c0f93fbe0",
+    "name": "Combiflam Tablet",
+    "price": 50,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTzB_imXN5B01swYJaixUNOd6QqpYLIWtNOUg&s",
+    "slug": "combiflam",
+    "category": "medicines",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "cab90a492f752f5b346cc9d5",
+    "name": "Aspirin Tablet",
+    "price": 25,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRIMewbTqH8mxZzgczPVhvtW6P6zWNvFgRHog&s",
+    "slug": "aspirin",
+    "category": "medicines",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "237ad302df6c657c57a62982",
+    "name": "Levocetirizine Tablet",
+    "price": 40,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQUInt6zJDarUQB2S1gIhMPuF0CH7_SAarIFw&s",
+    "slug": "levocetirizine",
+    "category": "medicines",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "7d27683ebaabbc8924b6d1a2",
+    "name": "Montelukast Tablet",
+    "price": 75,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS1HGAntWN964Y2JG4uI6-1taEpeQH8j4whfw&s",
+    "slug": "montelukast",
+    "category": "medicines",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "0acb187aa4bce473080ae2b2",
+    "name": "Allegra 120 Tablet",
+    "price": 120,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTeDZyoloTW0sBksqLY9A-VwGZJBGvECavEhQ&s",
+    "slug": "allegra-120",
+    "category": "medicines",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "81e0e3463238a841725e6947",
+    "name": "Sinarest Tablet",
+    "price": 55,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRGxLCBT06BfGT5-gvTOJ0AynxYcaWZNwrsUw&s",
+    "slug": "sinarest",
+    "category": "medicines",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "297285271fa2b08958726e1a",
+    "name": "Azithromycin 500 Tablet",
+    "price": 110,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTgAVliyLRVLWEdAbTMOI_q7ejB70KAMKf4hA&s",
+    "slug": "azithromycin",
+    "category": "medicines",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "3e48f38e2bfa470c911042a5",
+    "name": "Ciprofloxacin 500 Tablet",
+    "price": 95,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcREWBZzNjFiBGcjjuRD37_x4kS7pVJwyfv53A&s",
+    "slug": "ciprofloxacin",
+    "category": "medicines",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "73526f18acaddb3d7eacfb63",
+    "name": "Doxycycline Capsule",
+    "price": 80,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR9_j8_pyqjneFedot8LYEx2EnEWk3Qk1bJHw&s",
+    "slug": "doxycycline",
+    "category": "medicines",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "8c8ecbd9cc72f5b3c5d84fb5",
+    "name": "Vitamin B Complex Tablet",
+    "price": 65,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ5lNGLDCipdftp-KRlC6prCoRzq9i7QcBA-w&s",
+    "slug": "vitamin-b-complex",
+    "category": "healthcare",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "2d1212da33c62938233749ee",
+    "name": "Vitamin C Tablet",
+    "price": 45,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSMndr4NisGPxo7XbTjE_vKcek2ZAfPY9gz5A&s",
+    "slug": "vitamin-c",
+    "category": "healthcare",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "90a33448015a06369f55e155",
+    "name": "Calcium + Vitamin D3 Tablet",
+    "price": 150,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR12dbKuuuOWXPljBo3krpkwSO0Bv-WkVh0hQ&s",
+    "slug": "calcium-d3",
+    "category": "healthcare",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "bc934e56e3ba68cd7b92151a",
+    "name": "Zincovit Tablet",
+    "price": 95,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTE2jycOhSgyvssMLzLg6tg4_MBMdzb6fQg4w&s",
+    "slug": "zincovit",
+    "category": "healthcare",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "53ec06c8eb286888c7e0dd87",
+    "name": "Dettol Antiseptic Liquid",
+    "price": 120,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR909YZndR0XlrKnyMHTJqyvBiTDSphgLf0yg&s",
+    "slug": "dettol",
+    "category": "personal-care",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "5d51734c176e946086ba2192",
+    "name": "Savlon Antiseptic Cream",
+    "price": 85,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSf3HpV6ySo2jK15aTPZndjo-x83Q6mRGjGgQ&s",
+    "slug": "savlon",
+    "category": "personal-care",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "30193ba1aef494402a7fc154",
+    "name": "Betadine Ointment",
+    "price": 90,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQrk0sw5FnvgLX-4lO8WDSZSnRxaztH-AANJA&s",
+    "slug": "betadine",
+    "category": "personal-care",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "da64b0435cd10b8d56fd5e6e",
+    "name": "Digene Antacid Tablet",
+    "price": 45,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSMDWlisRAQEoUd8mYvwvtbXVrzUePS1SABZA&s",
+    "slug": "digene",
+    "category": "medicines",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  },
+  {
+    "_id": "b4fa106c5049be865f3c3700",
+    "name": "ORS Electrolyte Powder",
+    "price": 30,
+    "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRIMewbTqH8mxZzgczPVhvtW6P6zWNvFgRHog&s",
+    "slug": "ors",
+    "category": "healthcare",
+    "createdAt": "2026-05-15T11:51:20.669Z",
+    "updatedAt": "2026-05-15T11:51:20.669Z"
+  }
+]

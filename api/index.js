@@ -1,11 +1,4 @@
-const { app, initializeDatabase } = require('../app');
+const { app } = require('../app');
 
-module.exports = async (req, res) => {
-  try {
-    await initializeDatabase();
-    return app(req, res);
-  } catch (error) {
-    console.error('Vercel handler failed:', error);
-    return res.status(500).json({ success: false, message: 'Database connection failed' });
-  }
-};
+// Login and health routes work without MongoDB; product routes use requireDatabase.
+module.exports = app;
