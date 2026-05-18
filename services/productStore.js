@@ -74,7 +74,19 @@ async function seedDatabase() {
   }
 }
 
+function isVercelRuntime() {
+  return Boolean(process.env.VERCEL);
+}
+
 function enableFileStorage(reason) {
+  if (isVercelRuntime()) {
+    const vercelError = new Error(
+      'MongoDB is required on Vercel. Add a valid MONGO_URI in Vercel → Project → Settings → Environment Variables, and allow 0.0.0.0/0 in MongoDB Atlas Network Access.'
+    );
+    vercelError.code = 'MONGO_REQUIRED';
+    throw vercelError;
+  }
+
   if (!useFileStorage) {
     console.warn(`Using local file storage for products: ${reason}`);
     useFileStorage = true;

@@ -114,7 +114,11 @@ async function requireDatabase(req, res, next) {
     next();
   } catch (error) {
     console.error('Database initialization failed:', error);
-    res.status(500).json({ success: false, message: 'Database connection failed' });
+    const status = error.code === 'MONGO_REQUIRED' ? 503 : 500;
+    res.status(status).json({
+      success: false,
+      message: error.message || 'Database connection failed'
+    });
   }
 }
 
@@ -141,6 +145,23 @@ app.get('/health', (req, res) => {
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'API is running' });
+});
+
+app.get('/api/health/db', async (req, res) => {
+  try {
+    await productStore.initializeDatabase();
+    res.json({
+      ok: true,
+      storage: productStore.isUsingFileStorage() ? 'local-file' : 'mongodb',
+      vercel: Boolean(process.env.VERCEL)
+    });
+  } catch (error) {
+    res.status(503).json({
+      ok: false,
+      message: error.message,
+      vercel: Boolean(process.env.VERCEL)
+    });
+  }
 });
 
 app.post('/api/admin/login', (req, res) => {
@@ -215,7 +236,7 @@ app.post('/api/products', requireDatabase, requireAdminAuth, async (req, res) =>
       });
     }
 
-    if (error.code === 'READ_ONLY_STORAGE') {
+    if (error.code === 'READ_ONLY_STORAGE' || error.code === 'MONGO_REQUIRED') {
       return res.status(503).json({ success: false, message: error.message });
     }
 
@@ -235,7 +256,7 @@ app.delete('/api/products/:identifier', requireDatabase, requireAdminAuth, async
   } catch (error) {
     console.error('Error deleting product:', error);
 
-    if (error.code === 'READ_ONLY_STORAGE') {
+    if (error.code === 'READ_ONLY_STORAGE' || error.code === 'MONGO_REQUIRED') {
       return res.status(503).json({ success: false, message: error.message });
     }
 
