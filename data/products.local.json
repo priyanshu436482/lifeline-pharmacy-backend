@@ -1,5 +1,15 @@
 [
   {
+    "_id": "5af653ae94dd022b7e104ddf",
+    "name": "rgwdl",
+    "price": 563,
+    "image": "mlfa,s;",
+    "slug": "42",
+    "category": "medicines",
+    "createdAt": "2026-05-15T12:06:23.741Z",
+    "updatedAt": "2026-05-15T12:06:23.741Z"
+  },
+  {
     "_id": "cc390842ecd321cae35312c5",
     "name": "Paracetamol 500mg Tablets",
     "price": 45,

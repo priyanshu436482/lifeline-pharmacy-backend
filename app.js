@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
 const productStore = require('./services/productStore');
+const cloudinary = require('./services/cloudinary');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -13,7 +14,8 @@ app.use(cors({
   methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 function base64UrlEncode(value) {
   return Buffer.from(value)
@@ -171,7 +173,14 @@ app.get('/api/products/:slug', requireDatabase, async (req, res) => {
 app.post('/api/products', requireDatabase, requireAdminAuth, async (req, res) => {
   try {
     const { name, price, image, slug, category } = req.body;
-    const newProduct = await productStore.createProduct({ name, price, image, slug, category });
+    
+    let finalImageUrl = image;
+    if (image && image.startsWith('data:image/')) {
+      const uploadResponse = await cloudinary.uploader.upload(image, { folder: 'lifeline_products' });
+      finalImageUrl = uploadResponse.secure_url;
+    }
+
+    const newProduct = await productStore.createProduct({ name, price, image: finalImageUrl, slug, category });
     res.status(201).json({ success: true, product: newProduct });
   } catch (error) {
     console.error('Error adding product:', error);
