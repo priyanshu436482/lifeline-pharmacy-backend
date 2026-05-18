@@ -29,7 +29,18 @@ async function readLocalProducts() {
 }
 
 async function writeLocalProducts(products) {
-  await fs.writeFile(LOCAL_PRODUCTS_PATH, JSON.stringify(products, null, 2), 'utf8');
+  try {
+    await fs.writeFile(LOCAL_PRODUCTS_PATH, JSON.stringify(products, null, 2), 'utf8');
+  } catch (error) {
+    if (error.code === 'EROFS') {
+      const readOnlyError = new Error(
+        'Cannot save products on this server. Set a valid MONGO_URI in Vercel environment variables.'
+      );
+      readOnlyError.code = 'READ_ONLY_STORAGE';
+      throw readOnlyError;
+    }
+    throw error;
+  }
 }
 
 async function seedLocalProducts() {
@@ -188,12 +199,16 @@ async function createProduct({ name, price, image, slug, category }) {
   return newProduct;
 }
 
-async function deleteProduct(id) {
+async function deleteProduct(identifier) {
   await initializeDatabase();
 
   if (useFileStorage) {
     const products = await readLocalProducts();
-    const index = products.findIndex((product) => product._id === id);
+    const index = products.findIndex((product) => (
+      product._id === identifier ||
+      product.id === identifier ||
+      product.slug === identifier
+    ));
 
     if (index === -1) {
       return null;
@@ -204,7 +219,15 @@ async function deleteProduct(id) {
     return removed;
   }
 
-  return Product.findByIdAndDelete(id);
+  if (mongoose.Types.ObjectId.isValid(identifier)) {
+    const deletedById = await Product.findByIdAndDelete(identifier);
+
+    if (deletedById) {
+      return deletedById;
+    }
+  }
+
+  return Product.findOneAndDelete({ slug: identifier });
 }
 
 function isUsingFileStorage() {

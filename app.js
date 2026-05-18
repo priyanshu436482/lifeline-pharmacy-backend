@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
@@ -91,6 +91,23 @@ function verifyAdminToken(token) {
   }
 }
 
+function isCloudinaryConfigured() {
+  return Boolean(
+    process.env.CLOUDINARY_CLOUD_NAME &&
+    process.env.CLOUDINARY_API_KEY &&
+    process.env.CLOUDINARY_API_SECRET
+  );
+}
+
+function uploadToCloudinary(image) {
+  return Promise.race([
+    cloudinary.uploader.upload(image, { folder: 'lifeline_products' }),
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Cloudinary upload timed out')), 12000);
+    })
+  ]);
+}
+
 async function requireDatabase(req, res, next) {
   try {
     await productStore.initializeDatabase();
@@ -176,8 +193,14 @@ app.post('/api/products', requireDatabase, requireAdminAuth, async (req, res) =>
     
     let finalImageUrl = image;
     if (image && image.startsWith('data:image/')) {
-      const uploadResponse = await cloudinary.uploader.upload(image, { folder: 'lifeline_products' });
-      finalImageUrl = uploadResponse.secure_url;
+      if (isCloudinaryConfigured()) {
+        try {
+          const uploadResponse = await uploadToCloudinary(image);
+          finalImageUrl = uploadResponse.secure_url;
+        } catch (uploadError) {
+          console.warn('Cloudinary upload failed; storing compressed image locally:', uploadError.message);
+        }
+      }
     }
 
     const newProduct = await productStore.createProduct({ name, price, image: finalImageUrl, slug, category });
@@ -192,13 +215,17 @@ app.post('/api/products', requireDatabase, requireAdminAuth, async (req, res) =>
       });
     }
 
+    if (error.code === 'READ_ONLY_STORAGE') {
+      return res.status(503).json({ success: false, message: error.message });
+    }
+
     res.status(500).json({ success: false, message: `Error adding product: ${error.message}` });
   }
 });
 
-app.delete('/api/products/:id', requireDatabase, requireAdminAuth, async (req, res) => {
+app.delete('/api/products/:identifier', requireDatabase, requireAdminAuth, async (req, res) => {
   try {
-    const product = await productStore.deleteProduct(req.params.id);
+    const product = await productStore.deleteProduct(req.params.identifier);
 
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
@@ -207,7 +234,12 @@ app.delete('/api/products/:id', requireDatabase, requireAdminAuth, async (req, r
     res.json({ success: true, message: 'Product deleted successfully' });
   } catch (error) {
     console.error('Error deleting product:', error);
-    res.status(500).json({ success: false, message: 'Error deleting product' });
+
+    if (error.code === 'READ_ONLY_STORAGE') {
+      return res.status(503).json({ success: false, message: error.message });
+    }
+
+    res.status(500).json({ success: false, message: error.message || 'Error deleting product' });
   }
 });
 
