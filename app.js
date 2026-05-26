@@ -11,7 +11,7 @@ const TOKEN_TTL_MS = 1000 * 60 * 60 * 12;
 
 app.use(cors({
   origin: '*',
-  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -241,6 +241,54 @@ app.post('/api/products', requireDatabase, requireAdminAuth, async (req, res) =>
     }
 
     res.status(500).json({ success: false, message: `Error adding product: ${error.message}` });
+  }
+});
+
+app.put('/api/products/:identifier', requireDatabase, requireAdminAuth, async (req, res) => {
+  try {
+    const { name, price, image, slug, category } = req.body;
+    const updates = {};
+
+    if (name !== undefined) updates.name = name;
+    if (price !== undefined) updates.price = Number(price);
+    if (slug !== undefined) updates.slug = slug;
+    if (category !== undefined) updates.category = category;
+
+    if (image && image.startsWith('data:image/')) {
+      if (isCloudinaryConfigured()) {
+        try {
+          const uploadResponse = await uploadToCloudinary(image);
+          updates.image = uploadResponse.secure_url;
+        } catch (uploadError) {
+          console.warn('Cloudinary upload failed during update; keeping existing image:', uploadError.message);
+        }
+      } else {
+        updates.image = image;
+      }
+    }
+
+    const product = await productStore.updateProduct(req.params.identifier, updates);
+
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    res.json({ success: true, product });
+  } catch (error) {
+    console.error('Error updating product:', error);
+
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'A medicine with this slug already exists. Slug must be unique.'
+      });
+    }
+
+    if (error.code === 'READ_ONLY_STORAGE' || error.code === 'MONGO_REQUIRED') {
+      return res.status(503).json({ success: false, message: error.message });
+    }
+
+    res.status(500).json({ success: false, message: error.message || 'Error updating product' });
   }
 });
 

@@ -12,6 +12,10 @@ let connectionPromise = null;
 let seedPromise = null;
 let useFileStorage = false;
 
+function getMongoUri() {
+  return process.env.MONGO_URI || process.env.MONGODB_URI;
+}
+
 function generateId() {
   return crypto.randomBytes(12).toString('hex');
 }
@@ -81,7 +85,7 @@ function isVercelRuntime() {
 function enableFileStorage(reason) {
   if (isVercelRuntime()) {
     const vercelError = new Error(
-      'MongoDB is required on Vercel. Add a valid MONGO_URI in Vercel → Project → Settings → Environment Variables, and allow 0.0.0.0/0 in MongoDB Atlas Network Access.'
+      'MongoDB is required on Vercel. In your backend Vercel project add MONGO_URI (or MONGODB_URI), then Redeploy. Also allow 0.0.0.0/0 in MongoDB Atlas Network Access.'
     );
     vercelError.code = 'MONGO_REQUIRED';
     throw vercelError;
@@ -106,7 +110,7 @@ async function initializeDatabase() {
     return cachedConnection;
   }
 
-  if (!process.env.MONGO_URI) {
+  if (!getMongoUri()) {
     enableFileStorage('MONGO_URI is not set');
     await ensureLocalProducts();
     return null;
@@ -114,7 +118,7 @@ async function initializeDatabase() {
 
   if (!connectionPromise) {
     connectionPromise = mongoose
-      .connect(process.env.MONGO_URI)
+      .connect(getMongoUri())
       .then((mongooseInstance) => {
         cachedConnection = mongooseInstance;
         console.log('Connected to MongoDB');
@@ -242,6 +246,44 @@ async function deleteProduct(identifier) {
   return Product.findOneAndDelete({ slug: identifier });
 }
 
+async function updateProduct(identifier, updates) {
+  await initializeDatabase();
+
+  if (useFileStorage) {
+    const products = await readLocalProducts();
+    const index = products.findIndex((product) => (
+      product._id === identifier ||
+      product.id === identifier ||
+      product.slug === identifier
+    ));
+
+    if (index === -1) {
+      return null;
+    }
+
+    const allowed = ['name', 'price', 'image', 'slug', 'category'];
+    for (const key of allowed) {
+      if (updates[key] !== undefined) {
+        products[index][key] = key === 'price' ? Number(updates[key]) : updates[key];
+      }
+    }
+    products[index].updatedAt = new Date().toISOString();
+
+    await writeLocalProducts(products);
+    return products[index];
+  }
+
+  if (mongoose.Types.ObjectId.isValid(identifier)) {
+    const updatedById = await Product.findByIdAndUpdate(identifier, updates, { new: true });
+
+    if (updatedById) {
+      return updatedById;
+    }
+  }
+
+  return Product.findOneAndUpdate({ slug: identifier }, updates, { new: true });
+}
+
 function isUsingFileStorage() {
   return useFileStorage;
 }
@@ -252,5 +294,6 @@ module.exports = {
   getProductBySlug,
   createProduct,
   deleteProduct,
+  updateProduct,
   isUsingFileStorage
 };
