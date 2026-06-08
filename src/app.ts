@@ -13,6 +13,26 @@ app.get('/health', (req: Request, res: Response) => {
   res.status(200).json({ status: 'UP', timestamp: new Date() });
 });
 
+app.post('/api/admin/login', (req: Request, res: Response) => {
+  const { id, password } = req.body;
+  const expectedId = process.env.ADMIN_ID || 'patel';
+  const expectedPassword = process.env.ADMIN_PASSWORD || 'pinshu42@';
+
+  if (id === expectedId && password === expectedPassword) {
+    res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      token: 'mock-admin-jwt-token-xyz',
+      adminId: expectedId
+    });
+  } else {
+    res.status(401).json({
+      success: false,
+      message: 'Invalid Admin ID or password.'
+    });
+  }
+});
+
 app.use('/api/products', productRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 
