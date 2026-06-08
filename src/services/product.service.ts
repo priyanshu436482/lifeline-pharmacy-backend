@@ -243,8 +243,7 @@ export class ProductService {
     // Fetch Shard A in parallel
     const taskA = (async () => {
       if (groupA.length === 0) return [];
-      const conn = getMongoShardAConnection();
-      const ProductModel = conn.model('Product');
+      const ProductModel = this.getShardAModel();
       return await ProductModel.find({ _id: { $in: groupA } }).exec();
     })();
 
@@ -334,8 +333,7 @@ export class ProductService {
 
       const taskA = (async () => {
         if (groupA.length === 0) return [];
-        const conn = getMongoShardAConnection();
-        const ProductModel = conn.model('Product');
+        const ProductModel = this.getShardAModel();
         return await ProductModel.find({ _id: { $in: groupA } }).exec();
       })();
 
