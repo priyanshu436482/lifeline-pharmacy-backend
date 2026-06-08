@@ -1,26 +1,28 @@
 {
-  "name": "backend",
+  "name": "lifeline-pharmacy-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "server.js",
+  "description": "Custom A-Z Multi-Cloud Sharded Backend for Lifeline Pharmacy",
+  "main": "dist/server.js",
   "scripts": {
-    "start": "node server.js",
-    "start:backend": "node server.js",
-    "start:pm2": "pm2 start server.js --name lifeline-backend",
-    "stop": "pm2 stop lifeline-backend",
-    "logs": "pm2 logs lifeline-backend",
-    "dev": "nodemon server.js",
-    "vercel-build": "echo Backend ready for Vercel"
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "vercel-build": "tsc"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "cloudinary": "^2.10.0",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "mongoose": "^9.4.1",
-    "nodemon": "^3.1.14"
+    "cloudinary": "^2.2.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "mongoose": "^8.4.1",
+    "pg": "^8.12.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.2",
+    "@types/pg": "^8.11.6",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.4.5"
   }
 }

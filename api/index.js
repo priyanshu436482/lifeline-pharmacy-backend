@@ -1,4 +1,3 @@
-const { app } = require('../app');
+const app = require('../dist/app').default;
 
-// Login and health routes work without MongoDB; product routes use requireDatabase.
 module.exports = app;
