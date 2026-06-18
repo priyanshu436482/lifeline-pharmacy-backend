@@ -8,6 +8,7 @@ export interface IProduct {
   stock: number;
   slug?: string;
   isFeatured?: boolean;
+  version?: number;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -26,7 +27,12 @@ export interface IUser {
   email: string;
   first_name?: string;
   last_name?: string;
+  password_hash?: string;
+  avatar_url?: string;
+  google_id?: string;
+  auth_provider?: string;
   created_at?: Date;
+  updated_at?: Date;
 }
 
 export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';

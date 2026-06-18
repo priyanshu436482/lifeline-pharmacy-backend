@@ -1,5 +1,9 @@
 import { Request, Response } from 'express';
-import { pgPool } from '../config/database';
+import { Model } from 'mongoose';
+import { getMongoShardAConnection } from '../config/database';
+import { OrderSchema, IOrderDocument } from '../schemas/order.schema';
+import { TransactionSchema, IInventoryTransactionDocument } from '../schemas/transaction.schema';
+import { LookupSchema, IShardLookupDocument } from '../schemas/lookup.schema';
 import { ProductRepository } from '../repositories/product.repository';
 import { LookupRepository } from '../repositories/lookup.repository';
 
@@ -7,28 +11,50 @@ export class DashboardController {
   private productRepository = new ProductRepository();
   private lookupRepository = new LookupRepository();
 
+  private getOrderModel(): Model<IOrderDocument> {
+    const conn = getMongoShardAConnection();
+    return conn.model<IOrderDocument>('Order', OrderSchema);
+  }
+
+  private getTransactionModel(): Model<IInventoryTransactionDocument> {
+    const conn = getMongoShardAConnection();
+    return conn.model<IInventoryTransactionDocument>('InventoryTransaction', TransactionSchema, 'inventory_transactions');
+  }
+
+  private getLookupModel(): Model<IShardLookupDocument> {
+    const conn = getMongoShardAConnection();
+    return conn.model<IShardLookupDocument>('ProductLookup', LookupSchema);
+  }
+
   public getStatsSummary = async (req: Request, res: Response): Promise<void> => {
     try {
-      // 1. Resolve PostgreSQL Stats (Orders & Revenue)
-      const orderCountQuery = pgPool.query('SELECT COUNT(*) FROM orders');
-      const revenueQuery = pgPool.query("SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE payment_status = 'completed'");
-      const recentTxnsQuery = pgPool.query(`
-        SELECT t.*, l.product_name 
-        FROM inventory_transactions t
-        LEFT JOIN product_shard_lookup l ON t.product_id = l.product_id
-        ORDER BY t.created_at DESC
-        LIMIT 10
-      `);
+      const OrderModel = this.getOrderModel();
+      const TransactionModel = this.getTransactionModel();
+      const LookupModel = this.getLookupModel();
 
-      // 2. Resolve Multi-Cloud stats (Mongo + Cloudinary + Postgres products)
+      // 1. Resolve MongoDB Stats (Orders & Revenue)
+      const orderCountQuery = OrderModel.countDocuments().exec();
+      
+      const revenueQuery = OrderModel.aggregate([
+        { $match: { payment_status: 'completed' } },
+        { $group: { _id: null, total: { $sum: '$total_amount' } } }
+      ]).exec();
+
+      // 2. Resolve recent transactions (with details)
+      const recentTxnsQuery = TransactionModel.find()
+        .sort({ created_at: -1 })
+        .limit(10)
+        .exec();
+
+      // 3. Resolve Multi-Cloud stats (MongoDB + Cloudinary products)
       const totalProductsCount = this.lookupRepository.countAll();
       const lowStockProducts = this.productRepository.getLowStockAcrossShards(5);
       const categoryAnalytics = this.productRepository.getCategoryCountsAcrossShards();
 
       const [
-        orderCountRes,
+        orderCount,
         revenueRes,
-        recentTxnsRes,
+        recentTxns,
         productsCount,
         lowStockList,
         categoriesList
@@ -41,15 +67,33 @@ export class DashboardController {
         categoryAnalytics
       ]);
 
+      const totalRevenue = revenueRes.length > 0 ? revenueRes[0].total : 0;
+
+      // Join inventory logs with product names (simulated or via quick map lookup)
+      const recentTransactionsWithNames = await Promise.all(
+        recentTxns.map(async (txn) => {
+          const lookup = await LookupModel.findOne({ product_id: txn.product_id }).exec();
+          return {
+            transaction_id: txn.transaction_id,
+            product_id: txn.product_id,
+            product_name: lookup ? lookup.product_name : 'Unknown Product',
+            quantity_change: txn.quantity_change,
+            transaction_type: txn.transaction_type,
+            reference_id: txn.reference_id,
+            created_at: txn.created_at
+          };
+        })
+      );
+
       res.status(200).json({
         success: true,
         data: {
           totalProducts: productsCount,
-          totalOrders: parseInt(orderCountRes.rows[0].count, 10),
-          totalRevenue: parseFloat(revenueRes.rows[0].total),
+          totalOrders: orderCount,
+          totalRevenue: totalRevenue,
           lowStockAlerts: lowStockList.length,
           categoryAnalytics: categoriesList,
-          recentInventoryTransactions: recentTxnsRes.rows,
+          recentInventoryTransactions: recentTransactionsWithNames,
           lowStockProducts: lowStockList.map(p => ({
             id: p._id,
             name: p.name,
@@ -89,24 +133,28 @@ export class DashboardController {
       await this.productRepository.update(lookup.shard_name, productId, { stock: newStock }, lookup.mongodb_collection);
 
       const txnId = `txn_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      await pgPool.query(
-        `INSERT INTO inventory_transactions (transaction_id, product_id, quantity_change, transaction_type, reference_id) 
-         VALUES ($1, $2, $3, 'restock', 'admin_restock')`,
-        [txnId, productId, Number(quantity)]
-      );
+      
+      const TransactionModel = this.getTransactionModel();
+      const newTxn = new TransactionModel({
+        transaction_id: txnId,
+        product_id: productId,
+        quantity_change: Number(quantity),
+        transaction_type: 'restock',
+        reference_id: 'admin_restock'
+      });
+      await newTxn.save();
 
       res.status(200).json({
         success: true,
         message: 'Product stock updated and logged successfully.',
         data: {
           productId,
-          previousStock: product.stock,
           newStock
         }
       });
     } catch (error: any) {
       console.error('Controller error in restockProduct:', error);
-      res.status(500).json({ success: false, message: error.message || 'Restock action failed.' });
+      res.status(500).json({ success: false, message: 'Failed to update product stock.' });
     }
   };
 }

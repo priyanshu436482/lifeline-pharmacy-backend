@@ -1,25 +1,34 @@
 import mongoose, { Connection } from 'mongoose';
-import { Pool } from 'pg';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-// PostgreSQL Connection Pool (Neon Postgres) - stores users, orders, shard lookup, and S-Z products
-export const pgPool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: parseInt(process.env.PG_POOL_MAX || '20', 10),
-  idleTimeoutMillis: parseInt(process.env.PG_IDLE_TIMEOUT || '30000', 10),
-  connectionTimeoutMillis: parseInt(process.env.PG_CONN_TIMEOUT || '15000', 10),
-  ssl: {
-    rejectUnauthorized: false
+function resolveMongoShardAUri(): string | undefined {
+  return (
+    process.env.MONGODB_SHARD_A_URI ||
+    process.env.MONGO_URI ||
+    process.env.MONGODB_URI
+  );
+}
+
+export function getMissingEnvVars(): string[] {
+  const missing: string[] = [];
+  if (!resolveMongoShardAUri()) {
+    missing.push('MONGODB_SHARD_A_URI (or MONGO_URI / MONGODB_URI)');
   }
-});
+  if (!process.env.CLOUDINARY_CLOUD_NAME) {
+    missing.push('CLOUDINARY_CLOUD_NAME');
+  }
+  if (!process.env.CLOUDINARY_API_KEY) {
+    missing.push('CLOUDINARY_API_KEY');
+  }
+  if (!process.env.CLOUDINARY_API_SECRET) {
+    missing.push('CLOUDINARY_API_SECRET');
+  }
+  return missing;
+}
 
-pgPool.on('error', (err) => {
-  console.error('Unexpected error on PostgreSQL connection pool:', err);
-});
-
-// MongoDB Shard A Connection (A-I Products)
+// MongoDB Shard A Connection (A-I Products, users, lookups, transactions, orders)
 let mongoShardAConnection: Connection | null = null;
 
 const mongoOptions: mongoose.ConnectOptions = {
@@ -31,43 +40,39 @@ const mongoOptions: mongoose.ConnectOptions = {
 
 export async function initializeDatabases(): Promise<{
   mongoShardA: Connection;
-  postgresPool: Pool;
 }> {
   if (mongoShardAConnection) {
-    return { mongoShardA: mongoShardAConnection, postgresPool: pgPool };
+    return { mongoShardA: mongoShardAConnection };
   }
 
-  const shardA_Url = process.env.MONGODB_SHARD_A_URI;
-  if (!shardA_Url) {
-    throw new Error('Missing MONGODB_SHARD_A_URI in environment configuration.');
+  const missing = getMissingEnvVars();
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing environment variables: ${missing.join(', ')}. ` +
+        'Add them in backend/.env locally or in Vercel → Project → Settings → Environment Variables, then redeploy.'
+    );
   }
 
-  if (!process.env.DATABASE_URL) {
-    throw new Error('Missing PostgreSQL DATABASE_URL in environment configuration.');
-  }
+  const shardA_Url = resolveMongoShardAUri()!;
 
   try {
-    console.log('Connecting to PostgreSQL client pool...');
-    await pgPool.query('SELECT NOW()');
-    console.log('PostgreSQL Pool successfully warmed.');
-
-    console.log('Initializing MongoDB Shard A Connection (A-I)...');
+    console.log('Initializing MongoDB Shard Connection...');
     mongoShardAConnection = mongoose.createConnection(shardA_Url, mongoOptions);
 
     await new Promise<void>((resolve, reject) => {
       mongoShardAConnection!.once('open', () => {
-        console.log('MongoDB Shard A connected.');
+        console.log('MongoDB successfully connected.');
         resolve();
       });
       mongoShardAConnection!.once('error', (err) => {
-        console.error('MongoDB Shard A connection error:', err);
+        console.error('MongoDB connection error:', err);
         reject(err);
       });
     });
 
-    return { mongoShardA: mongoShardAConnection, postgresPool: pgPool };
+    return { mongoShardA: mongoShardAConnection };
   } catch (error) {
-    console.error('Database connection failed:', error);
+    console.error('MongoDB database connection failed:', error);
     throw error;
   }
 }

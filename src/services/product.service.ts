@@ -3,78 +3,92 @@ import { ProductRepository } from '../repositories/product.repository';
 import { LookupRepository } from '../repositories/lookup.repository';
 import { ProductShardRouter } from './shard-router.service';
 import { cloudinaryService } from './cloudinary.service';
+import { withPgTransaction } from './shard-transaction.service';
 import { IProduct } from '../types';
-import { getMongoShardAConnection, pgPool } from '../config/database';
-import { ProductSchema } from '../schemas/product.schema';
+import { IShardLookup } from '../types';
+import { getMongoShardAConnection } from '../config/database';
+import { TransactionSchema } from '../schemas/transaction.schema';
 
 export class ProductService {
   private productRepository = new ProductRepository();
   private lookupRepository = new LookupRepository();
 
-  /**
-   * Create a new product.
-   */
   public async createProduct(productData: IProduct, imageBase64: string): Promise<IProduct> {
-    // 1. Generate unique product ID
     const productId = new mongoose.Types.ObjectId().toString();
 
-    // 2. Upload image to Cloudinary
-    console.log('Uploading product image to Cloudinary...');
     const imageUrl = await cloudinaryService.uploadImage(imageBase64, 'products');
-    
-    // 3. Set imageUrl and slug
     const productSlug = productData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
     const productPayload: IProduct = {
       ...productData,
       imageUrl,
       slug: productSlug,
-      _id: productId
+      _id: productId,
     };
 
-    // 4. Resolve Shard based on Name starting letter
     const shardName = ProductShardRouter.getShardNameByName(productPayload.name);
-    console.log(`Routing product "${productPayload.name}" to Shard: ${shardName}`);
+    let dbCollectionStr = 'products';
+    let createdProduct: IProduct;
 
-    // 5. Store in the correct backend database (Mongo, Cloudinary JSON, or Neon Postgres)
-    const createdProduct = await this.productRepository.create(shardName, productId, productPayload);
+    try {
+      if (shardName === 'shard_b') {
+        dbCollectionStr = await cloudinaryService.uploadProductJson(productId, {
+          ...productPayload,
+          version: 1,
+        });
 
-    // 6. Define the location parameter stored in Postgres lookup mapping
-    let dbCollectionStr = 'products'; // For MongoDB (shard_a)
-    if (shardName === 'shard_b') {
-      // For Cloudinary (shard_b), we store the exact JSON file URL in PostgreSQL
-      dbCollectionStr = createdProduct.imageUrl || 'cloudinary_raw';
-      
-      // Let's get the secure JSON URL
-      const secureJsonUrl = await cloudinaryService.uploadProductJson(productId, productPayload);
-      dbCollectionStr = secureJsonUrl;
-    } else if (shardName === 'shard_c') {
-      // For Postgres (shard_c), store table name
-      dbCollectionStr = 'products_sz';
+        createdProduct = await withPgTransaction(async (client) => {
+          const product = await this.productRepository.create(shardName, productId, productPayload, client);
+          await this.lookupRepository.createLookup(
+            {
+              product_id: productId,
+              product_name: productPayload.name,
+              shard_name: shardName,
+              mongodb_collection: dbCollectionStr,
+            },
+            client
+          );
+          await this.logInventoryChange(client, productId, productPayload.stock, 'restock', 'initial_stock');
+          return product;
+        });
+      } else if (shardName === 'shard_c') {
+        dbCollectionStr = 'products_sz';
+        createdProduct = await withPgTransaction(async (client) => {
+          const product = await this.productRepository.create(shardName, productId, productPayload, client);
+          await this.lookupRepository.createLookup(
+            {
+              product_id: productId,
+              product_name: productPayload.name,
+              shard_name: shardName,
+              mongodb_collection: dbCollectionStr,
+            },
+            client
+          );
+          await this.logInventoryChange(client, productId, productPayload.stock, 'restock', 'initial_stock');
+          return product;
+        });
+      } else {
+        createdProduct = await this.productRepository.create(shardName, productId, productPayload);
+        await withPgTransaction(async (client) => {
+          await this.lookupRepository.createLookup(
+            {
+              product_id: productId,
+              product_name: productPayload.name,
+              shard_name: shardName,
+              mongodb_collection: dbCollectionStr,
+            },
+            client
+          );
+          await this.logInventoryChange(client, productId, productPayload.stock, 'restock', 'initial_stock');
+        });
+      }
+    } catch (error) {
+      await this.compensateFailedCreate(shardName, productId, imageUrl);
+      throw error;
     }
-
-    // 7. Save shard lookup mapping in Neon PostgreSQL
-    console.log(`Saving Shard Lookup map index inside Neon PG...`);
-    await this.lookupRepository.createLookup({
-      product_id: productId,
-      product_name: productPayload.name,
-      shard_name: shardName,
-      mongodb_collection: dbCollectionStr
-    });
-
-    // 8. Log inventory restock transaction
-    const txnId = `txn_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    await pgPool.query(
-      `INSERT INTO inventory_transactions (transaction_id, product_id, quantity_change, transaction_type, reference_id) 
-       VALUES ($1, $2, $3, 'restock', 'initial_stock')`,
-      [txnId, productId, productPayload.stock]
-    );
 
     return createdProduct;
   }
 
-  /**
-   * Fetch single product by ID.
-   */
   public async getProductById(productId: string): Promise<IProduct> {
     const lookup = await this.lookupRepository.getLookupById(productId);
     if (!lookup) {
@@ -82,9 +96,9 @@ export class ProductService {
     }
 
     const product = await this.productRepository.getById(
-      lookup.shard_name, 
-      productId, 
-      lookup.mongodb_collection // Passes the Cloudinary JSON URL if shard_b
+      lookup.shard_name,
+      productId,
+      lookup.mongodb_collection
     );
 
     if (!product) {
@@ -94,12 +108,9 @@ export class ProductService {
     return product;
   }
 
-  /**
-   * Update product details (supporting cross-shard migration if the name alphabetical category shifts).
-   */
   public async updateProduct(
-    productId: string, 
-    updates: Partial<IProduct>, 
+    productId: string,
+    updates: Partial<IProduct>,
     imageBase64?: string
   ): Promise<IProduct> {
     const lookup = await this.lookupRepository.getLookupById(productId);
@@ -108,14 +119,16 @@ export class ProductService {
     }
 
     const currentShard = lookup.shard_name;
-    const currentProduct = await this.productRepository.getById(currentShard, productId, lookup.mongodb_collection);
+    const currentProduct = await this.productRepository.getById(
+      currentShard,
+      productId,
+      lookup.mongodb_collection
+    );
     if (!currentProduct) {
       throw new Error(`Product data not found in sharded cluster: ${currentShard}`);
     }
 
-    // Handle image upload updates
     if (imageBase64) {
-      console.log('Replacing product image on Cloudinary...');
       const newImageUrl = await cloudinaryService.uploadImage(imageBase64, 'products');
       if (currentProduct.imageUrl) {
         await cloudinaryService.deleteImage(currentProduct.imageUrl);
@@ -123,181 +136,100 @@ export class ProductService {
       updates.imageUrl = newImageUrl;
     }
 
-    // Handle name changes and sharding boundary shifts
     if (updates.name && updates.name !== currentProduct.name) {
-      const newShard = ProductShardRouter.getShardNameByName(updates.name);
       updates.slug = updates.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+      const newShard = ProductShardRouter.getShardNameByName(updates.name);
 
       if (newShard !== currentShard) {
-        console.log(`Migration triggered: ${currentShard} -> ${newShard}`);
-
-        const migratedPayload: IProduct = {
-          name: updates.name,
-          price: updates.price !== undefined ? updates.price : currentProduct.price,
-          description: updates.description !== undefined ? updates.description : currentProduct.description,
-          category: updates.category !== undefined ? updates.category : currentProduct.category,
-          imageUrl: updates.imageUrl !== undefined ? updates.imageUrl : currentProduct.imageUrl,
-          stock: updates.stock !== undefined ? updates.stock : currentProduct.stock,
-          slug: updates.slug,
-          isFeatured: updates.isFeatured !== undefined ? updates.isFeatured : currentProduct.isFeatured,
-          _id: productId
-        };
-
-        // 1. Save in the new storage shard
-        const createdNew = await this.productRepository.create(newShard, productId, migratedPayload);
-
-        // 2. Delete from the old storage shard
-        await this.productRepository.delete(currentShard, productId);
-
-        // 3. Determine new lookup location url/table
-        let dbCollectionStr = 'products';
-        if (newShard === 'shard_b') {
-          const secureJsonUrl = await cloudinaryService.uploadProductJson(productId, migratedPayload);
-          dbCollectionStr = secureJsonUrl;
-        } else if (newShard === 'shard_c') {
-          dbCollectionStr = 'products_sz';
-        }
-
-        // 4. Update index mapping in Postgres
-        await this.lookupRepository.updateLookup(productId, updates.name, newShard, dbCollectionStr);
-
-        return createdNew;
-      } else {
-        // Name changed but shard range remains identical
-        let dbCollectionStr = lookup.mongodb_collection;
-        if (currentShard === 'shard_b') {
-          // Update details inside JSON and save back
-          const updatedJson = { ...currentProduct, ...updates };
-          dbCollectionStr = await cloudinaryService.uploadProductJson(productId, updatedJson);
-        }
-        
-        await this.lookupRepository.updateLookup(productId, updates.name, currentShard, dbCollectionStr);
+        return await this.migrateProductAcrossShards(
+          productId,
+          currentShard,
+          newShard,
+          currentProduct,
+          updates,
+          lookup
+        );
       }
+
+      await this.lookupRepository.updateLookup(
+        productId,
+        updates.name,
+        currentShard,
+        lookup.mongodb_collection
+      );
     }
 
-    // Standard update within the same storage engine
-    const updated = await this.productRepository.update(currentShard, productId, updates, lookup.mongodb_collection);
+    const updated = await this.productRepository.update(
+      currentShard,
+      productId,
+      updates,
+      lookup.mongodb_collection,
+      currentProduct.version
+    );
     if (!updated) {
       throw new Error('Failed to update product details.');
     }
 
-    // Record stock change transaction log
     if (updates.stock !== undefined && updates.stock !== currentProduct.stock) {
-      const diff = updates.stock - currentProduct.stock;
-      const txnId = `txn_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      await pgPool.query(
-        `INSERT INTO inventory_transactions (transaction_id, product_id, quantity_change, transaction_type, reference_id) 
-         VALUES ($1, $2, $3, 'adjustment', 'stock_update')`,
-        [txnId, productId, diff]
+      await this.logInventoryChange(
+        null,
+        productId,
+        updates.stock - currentProduct.stock,
+        'adjustment',
+        'stock_update'
       );
     }
 
     return updated;
   }
 
-  /**
-   * Delete product.
-   */
   public async deleteProduct(productId: string): Promise<void> {
     const lookup = await this.lookupRepository.getLookupById(productId);
     if (!lookup) {
       throw new Error(`Product mapping with ID ${productId} not found in shard index.`);
     }
 
-    const product = await this.productRepository.getById(lookup.shard_name, productId, lookup.mongodb_collection);
-    if (product && product.imageUrl) {
-      await cloudinaryService.deleteImage(product.imageUrl);
+    const product = await this.productRepository.getById(
+      lookup.shard_name,
+      productId,
+      lookup.mongodb_collection
+    );
+
+    await withPgTransaction(async (client) => {
+      await this.lookupRepository.deleteLookup(productId, client);
+      await client.query('DELETE FROM inventory_transactions WHERE product_id = $1', [productId]);
+      if (lookup.shard_name === 'shard_b') {
+        await client.query('DELETE FROM products_jr WHERE product_id = $1', [productId]);
+      } else if (lookup.shard_name === 'shard_c') {
+        await client.query('DELETE FROM products_sz WHERE product_id = $1', [productId]);
+      }
+    });
+
+    try {
+      if (product?.imageUrl) {
+        await cloudinaryService.deleteImage(product.imageUrl);
+      }
+      if (lookup.shard_name === 'shard_a') {
+        await this.productRepository.delete('shard_a', productId);
+      } else if (lookup.shard_name === 'shard_b') {
+        await cloudinaryService.deleteProductJson(productId);
+      }
+    } catch (error) {
+      console.error(`Shard data cleanup failed for ${productId}; lookup already removed:`, error);
+      throw error;
     }
-
-    // Delete from sharded database (includes deleting Cloudinary JSON if shard_b)
-    await this.productRepository.delete(lookup.shard_name, productId);
-
-    // Delete lookup index
-    await this.lookupRepository.deleteLookup(productId);
-
-    // Remove transactions
-    await pgPool.query('DELETE FROM inventory_transactions WHERE product_id = $1', [productId]);
   }
 
-  /**
-   * List paginated products.
-   */
   public async getProductsList(page: number, limit: number): Promise<{ products: IProduct[]; total: number }> {
     const offset = (page - 1) * limit;
-    
-    // Fetch mapped indices from Postgres
-    const lookups = await this.lookupRepository.getAll(limit, offset);
-    const total = await this.lookupRepository.countAll();
-
-    // Group lookups by shard to fetch concurrently
-    const groupA: string[] = []; // MongoDB
-    const groupB: { id: string; url: string }[] = []; // Cloudinary
-    const groupC: string[] = []; // Postgres
-
-    lookups.forEach(l => {
-      if (l.shard_name === 'shard_a') groupA.push(l.product_id);
-      else if (l.shard_name === 'shard_b') groupB.push({ id: l.product_id, url: l.mongodb_collection });
-      else if (l.shard_name === 'shard_c') groupC.push(l.product_id);
-    });
-
-    // Fetch Shard A in parallel
-    const taskA = (async () => {
-      if (groupA.length === 0) return [];
-      const ProductModel = this.getShardAModel();
-      return await ProductModel.find({ _id: { $in: groupA } }).exec();
-    })();
-
-    // Fetch Shard B in parallel
-    const taskB = Promise.all(groupB.map(async (item) => {
-      try {
-        return await cloudinaryService.downloadProductJson(item.url);
-      } catch {
-        return null;
-      }
-    }));
-
-    // Fetch Shard C in parallel
-    const taskC = (async () => {
-      if (groupC.length === 0) return [];
-      const placeholders = groupC.map((_, i) => `$${i + 1}`).join(', ');
-      const res = await pgPool.query(`SELECT * FROM products_sz WHERE product_id IN (${placeholders})`, groupC);
-      return res.rows.map(row => ({
-        _id: row.product_id,
-        name: row.name,
-        price: parseFloat(row.price),
-        description: row.description,
-        category: row.category,
-        imageUrl: row.image_url,
-        stock: row.stock,
-        slug: row.slug,
-        isFeatured: row.is_featured,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at
-      }));
-    })();
-
-    const [resA, resB, resC] = await Promise.all([taskA, taskB, taskC]);
-
-    // Map by ID to reconstruct pagination order
-    const docMap = new Map<string, any>();
-    resA.forEach((doc: any) => docMap.set(doc._id.toString(), doc.toObject()));
-    resB.forEach((doc: any) => {
-      if (doc) docMap.set(doc._id.toString(), doc);
-    });
-    resC.forEach((doc: any) => docMap.set(doc._id.toString(), doc));
-
-    const sortedProducts: IProduct[] = [];
-    lookups.forEach(l => {
-      const doc = docMap.get(l.product_id);
-      if (doc) sortedProducts.push(doc);
-    });
-
-    return { products: sortedProducts, total };
+    const [lookups, total] = await Promise.all([
+      this.lookupRepository.getAll(limit, offset),
+      this.lookupRepository.countAll(),
+    ]);
+    const products = await this.hydrateProductsFromLookups(lookups);
+    return { products, total };
   }
 
-  /**
-   * Search and filter products.
-   */
   public async searchProducts(params: {
     q?: string;
     category?: string;
@@ -317,126 +249,165 @@ export class ProductService {
     }
 
     if (params.q) {
-      console.log(`Searching lookup table for: "${params.q}"`);
-      const lookups = await this.lookupRepository.searchLookups(params.q, params.limit, skip);
-      const total = await this.lookupRepository.countSearch(params.q);
-
-      const groupA: string[] = [];
-      const groupB: { id: string; url: string }[] = [];
-      const groupC: string[] = [];
-
-      lookups.forEach(l => {
-        if (l.shard_name === 'shard_a') groupA.push(l.product_id);
-        else if (l.shard_name === 'shard_b') groupB.push({ id: l.product_id, url: l.mongodb_collection });
-        else if (l.shard_name === 'shard_c') groupC.push(l.product_id);
-      });
-
-      const taskA = (async () => {
-        if (groupA.length === 0) return [];
-        const ProductModel = this.getShardAModel();
-        return await ProductModel.find({ _id: { $in: groupA } }).exec();
-      })();
-
-      const taskB = Promise.all(groupB.map(async (item) => {
-        try {
-          return await cloudinaryService.downloadProductJson(item.url);
-        } catch {
-          return null;
-        }
-      }));
-
-      const taskC = (async () => {
-        if (groupC.length === 0) return [];
-        const placeholders = groupC.map((_, i) => `$${i + 1}`).join(', ');
-        const res = await pgPool.query(`SELECT * FROM products_sz WHERE product_id IN (${placeholders})`, groupC);
-        return res.rows.map(row => ({
-          _id: row.product_id,
-          name: row.name,
-          price: parseFloat(row.price),
-          description: row.description,
-          category: row.category,
-          imageUrl: row.image_url,
-          stock: row.stock,
-          slug: row.slug,
-          isFeatured: row.is_featured,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at
-        }));
-      })();
-
-      const [resA, resB, resC] = await Promise.all([taskA, taskB, taskC]);
-
-      const docMap = new Map<string, any>();
-      resA.forEach((doc: any) => docMap.set(doc._id.toString(), doc.toObject()));
-      resB.forEach((doc: any) => {
-        if (doc) docMap.set(doc._id.toString(), doc);
-      });
-      resC.forEach((doc: any) => docMap.set(doc._id.toString(), doc));
-
-      const sortedProducts: IProduct[] = [];
-      lookups.forEach(l => {
-        const doc = docMap.get(l.product_id);
-        if (doc) sortedProducts.push(doc);
-      });
-
-      return { products: sortedProducts, total };
+      const [lookups, total] = await Promise.all([
+        this.lookupRepository.searchLookups(params.q, params.limit, skip),
+        this.lookupRepository.countSearch(params.q),
+      ]);
+      const products = await this.hydrateProductsFromLookups(lookups);
+      return { products, total };
     }
 
     if (params.category) {
-      console.log(`Searching category across shards: "${params.category}"`);
-      // Fallback to query all databases and filter/aggregate since category is not sharded
-      // 1. Fetch from Shard A
-      const taskA = this.getShardAModel().find({ category: params.category }).exec();
-      
-      // 2. Fetch from Shard C
-      const taskC = pgPool.query('SELECT * FROM products_sz WHERE category = $1', [params.category]);
+      const [shardA, shardB, shardC] = await Promise.all([
+        this.productRepository.getByCategory('shard_a', params.category),
+        this.productRepository.getByCategory('shard_b', params.category),
+        this.productRepository.getByCategory('shard_c', params.category),
+      ]);
 
-      // 3. Fetch from Shard B
-      const taskB = (async () => {
-        const res = await pgPool.query("SELECT product_id, mongodb_collection FROM product_shard_lookup WHERE shard_name = 'shard_b'");
-        const downloads = res.rows.map(async (row) => {
-          try {
-            return await cloudinaryService.downloadProductJson(row.mongodb_collection);
-          } catch {
-            return null;
-          }
-        });
-        const docs = await Promise.all(downloads);
-        return docs.filter(doc => doc !== null && doc.category === params.category) as IProduct[];
-      })();
-
-      const [resA, resC, resB] = await Promise.all([taskA, taskC, taskB]);
-
-      const mergedList: IProduct[] = [];
-      resA.forEach((doc: any) => mergedList.push(doc.toObject()));
-      resB.forEach((doc: any) => mergedList.push(doc));
-      resC.rows.forEach((row: any) => {
-        mergedList.push({
-          _id: row.product_id,
-          name: row.name,
-          price: parseFloat(row.price),
-          description: row.description,
-          category: row.category,
-          imageUrl: row.image_url,
-          stock: row.stock,
-          slug: row.slug,
-          isFeatured: row.is_featured,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at
-        });
-      });
-
-      // Paginatemerged list in memory
-      const total = mergedList.length;
-      const paginated = mergedList.slice(skip, skip + params.limit);
-      return { products: paginated, total };
+      const mergedList = [...shardA, ...shardB, ...shardC].sort(
+        (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+      );
+      return {
+        products: mergedList.slice(skip, skip + params.limit),
+        total: mergedList.length,
+      };
     }
 
     return await this.getProductsList(params.page, params.limit);
   }
 
-  private getShardAModel() {
-    const conn = getMongoShardAConnection();
-    return conn.model('Product', ProductSchema);
+  private async hydrateProductsFromLookups(lookups: IShardLookup[]): Promise<IProduct[]> {
+    const groupA: string[] = [];
+    const groupB: string[] = [];
+    const groupC: string[] = [];
+
+    lookups.forEach((l) => {
+      if (l.shard_name === 'shard_a') groupA.push(l.product_id);
+      else if (l.shard_name === 'shard_b') groupB.push(l.product_id);
+      else if (l.shard_name === 'shard_c') groupC.push(l.product_id);
+    });
+
+    const [resA, resB, resC] = await Promise.all([
+      this.productRepository.getManyByIds('shard_a', groupA),
+      this.productRepository.getManyByIds('shard_b', groupB),
+      this.productRepository.getManyByIds('shard_c', groupC),
+    ]);
+
+    const docMap = new Map<string, IProduct>();
+    [...resA, ...resB, ...resC].forEach((doc) => docMap.set(String(doc._id), doc));
+
+    return lookups
+      .map((l) => docMap.get(l.product_id))
+      .filter((doc): doc is IProduct => doc !== undefined);
   }
+
+  private async migrateProductAcrossShards(
+    productId: string,
+    currentShard: 'shard_a' | 'shard_b' | 'shard_c',
+    newShard: 'shard_a' | 'shard_b' | 'shard_c',
+    currentProduct: IProduct,
+    updates: Partial<IProduct>,
+    lookup: IShardLookup
+  ): Promise<IProduct> {
+    const migratedPayload: IProduct = {
+      name: updates.name!,
+      price: updates.price !== undefined ? updates.price : currentProduct.price,
+      description: updates.description !== undefined ? updates.description : currentProduct.description,
+      category: updates.category !== undefined ? updates.category : currentProduct.category,
+      imageUrl: updates.imageUrl !== undefined ? updates.imageUrl : currentProduct.imageUrl,
+      stock: updates.stock !== undefined ? updates.stock : currentProduct.stock,
+      slug: updates.slug!,
+      isFeatured: updates.isFeatured !== undefined ? updates.isFeatured : currentProduct.isFeatured,
+      _id: productId,
+    };
+
+    let dbCollectionStr = 'products';
+    let createdNew: IProduct = migratedPayload;
+
+    try {
+      if (newShard === 'shard_b') {
+        dbCollectionStr = await cloudinaryService.uploadProductJson(productId, {
+          ...migratedPayload,
+          version: 1,
+        });
+      } else if (newShard === 'shard_c') {
+        dbCollectionStr = 'products_sz';
+      }
+
+      await withPgTransaction(async (client) => {
+        if (currentShard === 'shard_b') {
+          await client.query('DELETE FROM products_jr WHERE product_id = $1', [productId]);
+        } else if (currentShard === 'shard_c') {
+          await client.query('DELETE FROM products_sz WHERE product_id = $1', [productId]);
+        }
+
+        if (newShard === 'shard_b' || newShard === 'shard_c') {
+          createdNew = await this.productRepository.create(newShard, productId, migratedPayload, client);
+        }
+
+        await this.lookupRepository.updateLookup(
+          productId,
+          migratedPayload.name,
+          newShard,
+          dbCollectionStr,
+          client
+        );
+      });
+
+      if (newShard === 'shard_a') {
+        createdNew = await this.productRepository.create(newShard, productId, migratedPayload);
+      }
+
+      if (currentShard === 'shard_a') {
+        await this.productRepository.delete('shard_a', productId);
+      } else if (currentShard === 'shard_b') {
+        await cloudinaryService.deleteProductJson(productId);
+      }
+    } catch (error) {
+      console.error(`Migration failed for ${productId}:`, error);
+      throw error;
+    }
+
+    return createdNew;
+  }
+
+  private getTransactionModel() {
+    const conn = getMongoShardAConnection();
+    return conn.model('InventoryTransaction', TransactionSchema, 'inventory_transactions');
+  }
+
+  private async compensateFailedCreate(
+    shardName: 'shard_a' | 'shard_b' | 'shard_c',
+    productId: string,
+    imageUrl?: string
+  ): Promise<void> {
+    try {
+      await this.productRepository.delete(shardName, productId);
+      if (imageUrl) {
+        await cloudinaryService.deleteImage(imageUrl);
+      }
+    } catch (cleanupError) {
+      console.error(`Compensation cleanup failed for ${productId}:`, cleanupError);
+    }
+  }
+
+  private async logInventoryChange(
+    client: any,
+    productId: string,
+    quantityChange: number,
+    type: 'restock' | 'adjustment',
+    referenceId: string
+  ): Promise<void> {
+    const txnId = `txn_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const TransactionModel = this.getTransactionModel();
+    const newTxn = new TransactionModel({
+      transaction_id: txnId,
+      product_id: productId,
+      quantity_change: quantityChange,
+      transaction_type: type,
+      reference_id: referenceId
+    });
+    await newTxn.save();
+  }
+
 }

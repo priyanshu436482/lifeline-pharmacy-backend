@@ -9,8 +9,8 @@ const PORT = process.env.PORT || 5000;
 
 async function startServer() {
   try {
-    console.log('Initializing lifeline pharmacy sharded databases (Mongo A-I, Postgres S-Z, Cloudinary J-R)...');
-    const { postgresPool } = await initializeDatabases();
+    console.log('Initializing LifeLine Pharmacy sharded databases (MongoDB + Cloudinary)...');
+    await initializeDatabases();
 
     console.log('Running sharded database seed and schema initialization...');
     await seedShardedDatabase();
@@ -21,17 +21,10 @@ async function startServer() {
     });
 
     const closeGracefully = async (signal: string) => {
-      console.log(`Received ${signal}. Shutting down server and closing database pools...`);
+      console.log(`Received ${signal}. Shutting down server...`);
       server.close(async () => {
         console.log('HTTP server closed.');
-        try {
-          await postgresPool.end();
-          console.log('PostgreSQL connection pool closed.');
-          process.exit(0);
-        } catch (err) {
-          console.error('Error closing databases during shutdown:', err);
-          process.exit(1);
-        }
+        process.exit(0);
       });
     };
 

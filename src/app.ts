@@ -2,7 +2,8 @@ import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import productRoutes from './routes/product.routes';
 import dashboardRoutes from './routes/dashboard.routes';
-import { initializeDatabases } from './config/database';
+import authRoutes from './routes/auth.routes';
+import { initializeDatabases, getMissingEnvVars } from './config/database';
 
 const app: Application = express();
 
@@ -22,7 +23,12 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
 
 
 app.get('/health', (req: Request, res: Response) => {
-  res.status(200).json({ status: 'UP', timestamp: new Date() });
+  const missing = getMissingEnvVars();
+  res.status(missing.length === 0 ? 200 : 503).json({
+    status: missing.length === 0 ? 'UP' : 'DEGRADED',
+    missingEnvVars: missing,
+    timestamp: new Date(),
+  });
 });
 
 app.post('/api/admin/login', (req: Request, res: Response) => {
@@ -47,6 +53,7 @@ app.post('/api/admin/login', (req: Request, res: Response) => {
 
 app.use('/api/products', productRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/auth', authRoutes);
 
 app.use((req: Request, res: Response) => {
   res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.url}` });
